@@ -54,7 +54,7 @@ The following number of issues were found, categorized by their severity:
 
 # Detailed Findings
 
-# [C-01] {Rewards are lost forever}
+# [C-01] Rewards are lost forever
 
 ## Severity
 
@@ -124,7 +124,7 @@ https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-tes
 
 `until` should be properly updated with `until = block.timestamp + (periods * _DAY * _DAYS_IN_MONT);`
 
-# [H-01] {Wrong Calculation in Collecting Reward First time}
+# [H-01] Wrong Calculation in Collecting Reward First time
 
 ## Severity
 
@@ -149,7 +149,7 @@ If a user tries calls `_collectReward` for the first time, and before the end of
 
 Add a condition to check if `lastRewardClaims[account]` = 0, and then use `stakes[account].startedAt` instead of `lastRewardClaims[account]`.
 
-# [H-02] {Users lose stakes permanently if they call `emergencyWithdraw`}
+# [H-02] Users lose stakes permanently if they call `emergencyWithdraw`
 
 ## Severity
 
@@ -187,7 +187,7 @@ Consider storing the value of `stakes[msg.sender].amount` before updating it to 
 
 ```
 
-# [M-01] {Not all tokens `revert` in `transfer`}
+# [M-01] Not all tokens `revert` in `transfer`
 
 ## Severity
 
@@ -215,7 +215,7 @@ https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-tes
 
 Consider checking the `return` value as not all tokens revert in `transfer` when they fail.
 
-# [L-01] {`fee` is not applied`}
+# [L-01] `fee` is not applied`
 
 ## Severity
 
