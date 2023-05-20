@@ -26,19 +26,17 @@ Louis, or **jnrlouis**, is a dedicated and driven junior smart contract security
 
 # Security Assessment Summary
 
-**_review commit hash_ - [4e527c16fe6b1524e9a8146ae122efc6](https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6)**
-
 ### Scope
 
 The following smart contracts were in scope of the audit:
 
-- [TestTask.sol](https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6)
+- [TestTask.sol]()
 
 The following number of issues were found, categorized by their severity:
 
 - Critical & High: 3 issues
-- Medium: 1 issues
-- Low: 1 issues
+- Medium: 3 issues
+- Low: 2 issues
 
 ---
 
@@ -50,7 +48,10 @@ The following number of issues were found, categorized by their severity:
 | [H-01] | Wrong Calculation in Collecting Reward First time | High     |
 | [H-01] | Users lose stakes permanently if they call `emergencyWithdraw` | High     |
 | [M-01] | Not all tokens `revert` in `transfer`   | Medium   |
+| [M-02] | Missing check for if Stake Period Passed   | Medium   |
+| [M-03] | `totalStaked` not updated after withdrawal   | Medium   |
 | [L-01] | `fee` is not applied`      | Low      |
+| [L-02] | Unused variables should be removed      | Low      |
 
 # Detailed Findings
 
@@ -83,8 +84,6 @@ This function then makes an internal call to the `_stake` function which impleme
         _setStakeInfo(account, newAmount, periods, block.timestamp, until);
 ```
 
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L315-L321
-
 The issue here is that `until` would be set to 0 as `stakes[account].activeUntil` would be initialized as 0.
 
 The `_rewardAmount` function would in turn be affected as `time` would always be 0, `periodPassed` would be 0 and therefore, `reward` would also be zero (0).
@@ -106,7 +105,6 @@ The `_rewardAmount` function would in turn be affected as `time` would always be
             _YEAR_IN_DAYS /
             1e8;
 ```
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L273-L285
 
 This would also affect the `_nextRewardDate` function as it would always return 0.
 
@@ -116,8 +114,6 @@ This would also affect the `_nextRewardDate` function as it would always return 
             return stakeInfo.activeUntil;
         }
 ```
-
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L288-L295
 
 
 ## Recommendations
@@ -141,9 +137,7 @@ In the `_rewardAmount` function, the `periodPassed` is calculated with this:
         periodsPassed = (time - lastRewardClaims[account]) / _DAY;
 ```
 
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L273-L285
-
-If a user tries calls `_collectReward` for the first time, and before the end of the period, then, `time = block.timestamp;`. `block.timestamp` is the UNIX timestamp (the number of seconds since January 1970), and if `lastRewardClaims[account]` = 0, then the `periodPassed` would be the `block.timestamp / _DAY` which would be a value larger than intended.
+If a user calls `_collectReward` for the first time, and before the end of the period, then, `time = block.timestamp;`. `block.timestamp` is the UNIX timestamp (the number of seconds since January 1970), and if `lastRewardClaims[account]` = 0, then the `periodPassed` would be the `block.timestamp / _DAY` which would be a value larger than intended.
 
 ## Recommendations
 
@@ -168,9 +162,6 @@ In the `emergencyWithdraw` function, the `stakes[msg.sender].amount` is updated 
         _withdraw(msg.sender, stakes[msg.sender].amount);
     }
 ```
-
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L218-L220
-
 
 ## Recommendations
 
@@ -208,12 +199,67 @@ In the `_withdraw` function, the return value of `stakingToken.transfer(account,
     }
 ```
 
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L326-L330
-
-
 ## Recommendations
 
 Consider checking the `return` value as not all tokens revert in `transfer` when they fail.
+
+# [M-02] Missing check for if Stake Period Passed
+
+## Severity
+
+**Impact:** Medium
+
+**Likelihood:** Medium
+
+## Description
+
+In the `withdraw` function, there is no check for if the stake period has elapsed. Therefore, users can withdraw at anytime, bypassing the `emergencyWithdraw()` function and not needing to pay the associated fee when withdrawing early.
+
+```
+    /**
+     * @notice withdraw all tokens if the stake period has passed.
+     */
+    function withdraw() external {
+        require(stakes[msg.sender].amount > 0, "no stake");
+        _collectRewards(msg.sender, true);
+        // @audit No check if stake period has passed
+        _withdraw(msg.sender, stakes[msg.sender].amount);
+    }
+```
+
+## Recommendations
+
+Consider checking the period passed before allowing withdrawal.
+
+# [M-03] `totalStaked` not updated after withdrawal
+
+## Severity
+
+**Impact:** Medium
+
+**Likelihood:** Medium
+
+## Description
+
+In the `withdraw` function, the state variable `totalStaked` was not updated after a withdrawal.
+
+```
+    /**
+     * @notice withdraw all tokens if the stake period has passed.
+     */
+     
+    function withdraw() external {
+        require(stakes[msg.sender].amount > 0, "no stake");
+        _collectRewards(msg.sender, true);
+        // @audit No check if stake period has passed
+        _withdraw(msg.sender, stakes[msg.sender].amount);
+        // @audit `totalStaked`not updated
+    }
+```
+
+## Recommendations
+
+Update `totalStaked` in the `withdraw()` function.
 
 # [L-01] `fee` is not applied`
 
@@ -259,11 +305,27 @@ Consider checking the `return` value as not all tokens revert in `transfer` when
     }
 ```
 
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L210-L221
-
-https://gist.github.com/EugeneBezuglyi/4e527c16fe6b1524e9a8146ae122efc6#file-testtask-sol-L223-L233
-
-
 ## Recommendations
 
 Add the `earlyWithdrawalFee` in the implementation as stipulated.
+
+# [L-02] Unused variables should be removed 
+
+## Severity
+
+**Impact:** Low
+
+**Likelihood:** Low
+
+## Description
+
+`levelPeriods` and `_operators` were not used in the contract.
+```
+    mapping(uint256 => uint256[]) public levelPeriods; //@audit Not used
+    mapping(address => uint256) public lastRewardClaims;
+    mapping(address => bool) private _operators; // @audit Not used
+```
+
+## Recommendations
+
+Consider removing unused functions.
